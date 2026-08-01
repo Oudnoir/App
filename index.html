@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="es">
+<head> <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(() => console.log("Service Worker registrado con éxito."))
+        .catch((err) => console.log("Error al registrar Service Worker:", err));
+    });
+  }
+</script>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Habit Tracker Universal HD</title>
+  <style>
+    :root {
+      --bg-journal: #121212;
+      --bg-card: #1e1e1e;
+      --grid-line: #2a2a2a;
+      --text-color: #f0f0f0;
+      --text-muted: #a0a0a0;
+      --border-color: #333333;
+      --accent-neon: #38bdf8;
+      
+      --c-0: #a855f7;
+      --c-1: #3b82f6;
+      --c-2: #22c55e;
+      --c-3: #f97316;
+      --c-4: #eab308;
+      --c-5: #ec4899;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      caret-color: var(--accent-neon);
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #050505;
+      font-family: 'Courier New', Courier, monospace;
+      color: var(--text-color);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* PANTALLA DE INICIO OVERLAY */
+    #splash-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100dvh;
+      background-color: #050505;
+      z-index: 99999;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+
+    #splash-screen.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .splash-content {
+      text-align: center;
+      animation: splashPop 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* ÍCONO DE GRÁFICA NEÓN EN SVG */
+    .splash-logo {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 12px;
+      filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.8));
+      animation: pulseGlow 1.2s infinite alternate ease-in-out;
+    }
+
+    .splash-title {
+      font-size: 1.3rem;
+      letter-spacing: 4px;
+      margin: 0 0 20px 0;
+      color: #ffffff;
+      font-weight: bold;
+    }
+
+    .splash-loader {
+      width: 160px;
+      height: 4px;
+      background: #1a1a1a;
+      border-radius: 4px;
+      margin: 0 auto;
+      overflow: hidden;
+      border: 1px solid #333;
+    }
+
+    .splash-bar {
+      width: 0%;
+      height: 100%;
+      background: var(--accent-neon);
+      box-shadow: 0 0 10px var(--accent-neon);
+      animation: fillLoader 1.3s ease-in-out forwards;
+    }
+
+    @keyframes splashPop {
+      0% { transform: scale(0.85); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    @keyframes pulseGlow {
+      0% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.5)); }
+      100% { transform: scale(1.08); filter: drop-shadow(0 0 18px rgba(56, 189, 248, 1)); }
+    }
+
+    @keyframes fillLoader {
+      0% { width: 0%; }
+      100% { width: 100%; }
+    }
+
+    /* CONTENEDOR APP */
+    .journal-app {
+      width: 100vw;
+      height: 100dvh;
+      max-width: 850px;
+      max-height: 1000px;
+      background-color: var(--bg-journal);
+      background-image: 
+        linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+      background-size: 16px 16px;
+      display: flex;
+      flex-direction: column;
+      padding: clamp(8px, 2vw, 16px);
+      perspective: 1000px;
+      touch-action: pan-y;
+      position: relative;
+    }
+
+    @media (min-width: 768px) {
+      .journal-app {
+        height: 94vh;
+        border: 1px solid #333;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      }
+    }
+
+    .page-turn-next { animation: flipNext 0.25s ease-out; }
+    .page-turn-prev { animation: flipPrev 0.25s ease-out; }
+
+    @keyframes flipNext {
+      0% { transform: translateX(0) rotateY(0deg); opacity: 1; }
+      50% { transform: translateX(-20px) rotateY(-6deg); opacity: 0.4; }
+      100% { transform: translateX(0) rotateY(0deg); opacity: 1; }
+    }
+
+    @keyframes flipPrev {
+      0% { transform: translateX(0) rotateY(0deg); opacity: 1; }
+      50% { transform: translateX(20px) rotateY(6deg); opacity: 0.4; }
+      100% { transform: translateX(0) rotateY(0deg); opacity: 1; }
+    }
+
+    header {
+      text-align: center;
+      padding-bottom: 6px;
+      border-bottom: 2px solid var(--border-color);
+      flex-shrink: 0;
+    }
+
+    .month-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-arrow {
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 4px;
+      color: var(--accent-neon);
+      font-size: 1.2rem;
+      font-weight: bold;
+      cursor: pointer;
+      padding: 2px 12px;
+      transition: background 0.2s;
+    }
+
+    .nav-arrow:active { background: #333; }
+
+    .title-month {
+      font-size: clamp(1rem, 3vw, 1.3rem);
+      font-weight: bold;
+      text-transform: uppercase;
+      margin: 0;
+      letter-spacing: 2px;
+      color: #fff;
+    }
+
+    .mantra-container {
+      margin-top: 4px;
+    }
+
+    .mantra {
+      font-size: clamp(0.7rem, 2vw, 0.85rem);
+      font-style: italic;
+      color: var(--accent-neon);
+      outline: none;
+      display: inline-block;
+      min-width: 180px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px transparent;
+      transition: all 0.2s ease;
+    }
+
+    .mantra:empty::before {
+      content: '"Toca aquí para escribir el mantra de este mes..."';
+      color: #555;
+    }
+
+    .mantra:focus {
+      background: #1e293b;
+      border: 1px dashed var(--accent-neon);
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+    }
+
+    .tabs-bar {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 10px 4px;
+      background: #1a1a1a;
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+      border-bottom: none;
+      border-radius: 6px 6px 0 0;
+      font-family: inherit;
+      font-size: clamp(0.7rem, 2vw, 0.85rem);
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      background: var(--bg-card);
+      color: #fff;
+      border-color: #555;
+      border-bottom: 2px solid var(--bg-card);
+      margin-bottom: -2px;
+      z-index: 2;
+    }
+
+    .view-content {
+      flex: 1;
+      border: 1px solid var(--border-color);
+      background: var(--bg-card);
+      border-radius: 0 0 6px 6px;
+      display: none;
+      flex-direction: column;
+      padding: 6px;
+      overflow: hidden;
+    }
+
+    .view-content.active {
+      display: flex;
+    }
+
+    .tracker-scroll {
+      flex: 1;
+      overflow-y: auto;
+      border: 1px solid var(--border-color);
+      background: #121212;
+    }
+
+    .tracker-table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    .tracker-table th, .tracker-table td {
+      border: 1px solid #2d2d2d;
+      text-align: center;
+      padding: 0;
+      height: 24px;
+    }
+
+    .th-day {
+      width: 32px;
+      font-size: 0.75rem;
+      background: #181818;
+      color: #aaa;
+    }
+
+    .th-habit {
+      height: 95px;
+      vertical-align: bottom;
+      padding-bottom: 4px !important;
+      background: #161616;
+    }
+
+    .vertical-text {
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      font-size: 0.7rem;
+      font-weight: bold;
+      white-space: nowrap;
+      outline: none;
+      padding: 4px 2px;
+      border-radius: 3px;
+      color: #e0e0e0;
+      min-width: 24px;
+      min-height: 80px;
+      display: inline-block;
+      transition: all 0.2s ease;
+    }
+
+    .vertical-text:empty::before {
+      content: 'HÁBITO';
+      color: #444;
+    }
+
+    .vertical-text:focus {
+      background: #1e293b;
+      color: var(--accent-neon);
+      box-shadow: 0 0 6px rgba(56, 189, 248, 0.4);
+    }
+
+    .cell-day {
+      font-size: 0.75rem;
+      font-weight: bold;
+      background: #181818;
+      color: #888;
+    }
+
+    .cell-box {
+      cursor: pointer;
+      background-color: #1a1a1a;
+      transition: background-color 0.15s ease;
+    }
+
+    .cell-box.active-0 { background-color: var(--c-0) !important; box-shadow: 0 0 6px var(--c-0); }
+    .cell-box.active-1 { background-color: var(--c-1) !important; box-shadow: 0 0 6px var(--c-1); }
+    .cell-box.active-2 { background-color: var(--c-2) !important; box-shadow: 0 0 6px var(--c-2); }
+    .cell-box.active-3 { background-color: var(--c-3) !important; box-shadow: 0 0 6px var(--c-3); }
+    .cell-box.active-4 { background-color: var(--c-4) !important; box-shadow: 0 0 6px var(--c-4); }
+    .cell-box.active-5 { background-color: var(--c-5) !important; box-shadow: 0 0 6px var(--c-5); }
+
+    .progress-section {
+      margin-top: 6px;
+      padding: 6px;
+      background: #141414;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      font-weight: bold;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+
+    .percent-text { color: var(--accent-neon); }
+
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      background: #262626;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid #333;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #3b82f6, #a855f7, #22c55e);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    .graph-box {
+      height: 95px;
+      flex-shrink: 0;
+      margin-top: 6px;
+      border: 1px solid var(--border-color);
+      background: #141414;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2px;
+    }
+
+    .graph-title {
+      font-size: 0.65rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+      color: var(--text-muted);
+    }
+
+    #trend-canvas {
+      width: 100%;
+      height: 75px;
+      display: block;
+    }
+
+    .notes-list {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      background: #121212;
+      padding: 6px;
+      border: 1px solid var(--border-color);
+    }
+
+    .note-row {
+      display: flex;
+      align-items: center;
+      height: 26px;
+    }
+
+    .note-day {
+      width: 28px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      color: #666;
+    }
+
+    .note-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      border-bottom: 1px dotted #444;
+      font-family: inherit;
+      font-size: 0.8rem;
+      color: #fff;
+      outline: none;
+      padding: 2px 4px;
+      transition: all 0.2s ease;
+    }
+
+    .note-input:focus {
+      background: #1e293b;
+      border-bottom: 2px solid var(--accent-neon);
+      box-shadow: 0 2px 8px rgba(56, 189, 248, 0.2);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PANTALLA DE INICIO CON ÍCONO DE GRÁFICA NEÓN -->
+  <div id="splash-screen">
+    <div class="splash-content">
+      <div class="splash-logo">
+        <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+          <polyline points="16 7 22 7 22 13"></polyline>
+        </svg>
+      </div>
+      <h1 class="splash-title">HABIT TRACKER</h1>
+      <div class="splash-loader">
+        <div class="splash-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="journal-app" id="journal-app">
+    <header>
+      <div class="month-nav">
+        <button class="nav-arrow" onclick="prevMonth()">‹</button>
+        <h1 class="title-month" id="month-title">AGOSTO 2026</h1>
+        <button class="nav-arrow" onclick="nextMonth()">›</button>
+      </div>
+      <div class="mantra-container">
+        <div class="mantra" contenteditable="true" id="mantra-text">"Nadie lo va a hacer por ti"</div>
+      </div>
+    </header>
+
+    <div class="tabs-bar">
+      <button class="tab-btn active" id="tab-tracker-btn" onclick="switchTab('tracker', this)">📊 Habit Tracker</button>
+      <button class="tab-btn" id="tab-journal-btn" onclick="switchTab('journal', this)">📝 Diario</button>
+    </div>
+
+    <!-- VISTA TRACKER -->
+    <div id="view-tracker" class="view-content active">
+      <div class="tracker-scroll">
+        <table class="tracker-table">
+          <thead>
+            <tr>
+              <th class="th-day">Día</th>
+              <th class="th-habit"><div class="vertical-text" contenteditable="true" id="h-title-0">ENTRENAR</div></th>
+              <th class="th-habit"><div class="vertical-text" contenteditable="true" id="h-title-1">DORMIR 7H</div></th>
+              <th class="th-habit"><div class="vertical-text" contenteditable="true" id="h-title-2">AGUA 2L</div></th>
+              <th class="th-habit"><div class="vertical-text" contenteditable="true" id="h-title-3">LEER 20M</div></th>
+              <th class="th-habit"><div class="vertical-text" contenteditable="true" id="h-title-4">NO BASURA</div></th>
+              <th class="th-habit"><div class="vertical-text" contenteditable="true" id="h-title-5">ESTUDIAR</div></th>
+            </tr>
+          </thead>
+          <tbody id="tracker-body">
+            <!-- JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="progress-section">
+        <div class="progress-header">
+          <span>Avance Total del Mes</span>
+          <span class="percent-text" id="percent-label">0.0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+
+      <div class="graph-box">
+        <span class="graph-title">Tendencia del Mes</span>
+        <canvas id="trend-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- VISTA DIARIO -->
+    <div id="view-journal" class="view-content">
+      <div class="notes-list" id="notes-container">
+        <!-- JS -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const monthsConfig = [
+      { name: "AGOSTO 2026", id: "2026-08", days: 31, defaultMantra: '"Nadie lo va a hacer por ti"', defaultHabits: ["ENTRENAR", "DORMIR 7H", "AGUA 2L", "LEER 20M", "NO BASURA", "ESTUDIAR"] },
+      { name: "SEPTIEMBRE 2026", id: "2026-09", days: 30, defaultMantra: '"La constancia supera al talento"', defaultHabits: ["ENTRENAR", "DORMIR 7H", "AGUA 2L", "LEER 20M", "NO BASURA", "ESTUDIAR"] },
+      { name: "OCTUBRE 2026", id: "2026-10", days: 31, defaultMantra: '"Haz hoy lo que tu futuro agradecerá"', defaultHabits: ["ENTRENAR", "DORMIR 7H", "AGUA 2L", "LEER 20M", "NO BASURA", "ESTUDIAR"] },
+      { name: "NOVIEMBRE 2026", id: "2026-11", days: 30, defaultMantra: '"Sin excusas, solo resultados"', defaultHabits: ["ENTRENAR", "DORMIR 7H", "AGUA 2L", "LEER 20M", "NO BASURA", "ESTUDIAR"] },
+      { name: "DICIEMBRE 2026", id: "2026-12", days: 31, defaultMantra: '"Cierra el año con tu mejor versión"', defaultHabits: ["ENTRENAR", "DORMIR 7H", "AGUA 2L", "LEER 20M", "NO BASURA", "ESTUDIAR"] }
+    ];
+
+    let currentMonthIdx = 0;
+    const totalHabits = 6;
+
+    const journalApp = document.getElementById('journal-app');
+    const monthTitle = document.getElementById('month-title');
+    const mantraText = document.getElementById('mantra-text');
+    const trackerBody = document.getElementById('tracker-body');
+    const notesContainer = document.getElementById('notes-container');
+
+    function switchTab(tabName, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.view-content').forEach(v => v.classList.remove('active'));
+      
+      btn.classList.add('active');
+      document.getElementById(`view-${tabName}`).classList.add('active');
+      
+      if(tabName === 'tracker') {
+        setTimeout(updateStatsAndGraph, 50);
+      }
+    }
+
+    function renderCurrentMonth() {
+      const monthData = monthsConfig[currentMonthIdx];
+      monthTitle.innerText = monthData.name;
+
+      trackerBody.innerHTML = '';
+      notesContainer.innerHTML = '';
+
+      for (let day = 1; day <= monthData.days; day++) {
+        const tr = document.createElement('tr');
+        tr.id = `row-${day}`;
+        let cells = `<td class="cell-day">${day}</td>`;
+        for (let h = 0; h < totalHabits; h++) {
+          cells += `<td class="cell-box" onclick="toggleCell(this, ${h})"></td>`;
+        }
+        tr.innerHTML = cells;
+        trackerBody.appendChild(tr);
+
+        const nRow = document.createElement('div');
+        nRow.className = 'note-row';
+        nRow.innerHTML = `
+          <span class="note-day">${day}.</span>
+          <input type="text" class="note-input" id="note-${day}" placeholder="..." oninput="autoSave()">
+        `;
+        notesContainer.appendChild(nRow);
+      }
+
+      setupBlurAutoSave();
+      loadMonthData();
+    }
+
+    function setupBlurAutoSave() {
+      const editableElements = document.querySelectorAll('input, [contenteditable="true"]');
+      editableElements.forEach(el => {
+        el.addEventListener('blur', autoSave);
+      });
+    }
+
+    function toggleCell(cell, habitIndex) {
+      cell.classList.toggle(`active-${habitIndex}`);
+      updateStatsAndGraph();
+      autoSave();
+    }
+
+    function updateStatsAndGraph() {
+      const monthData = monthsConfig[currentMonthIdx];
+      const maxPossiblePoints = monthData.days * totalHabits;
+      
+      const activeBoxes = document.querySelectorAll('.cell-box[class*="active-"]').length;
+      const percentage = ((activeBoxes / maxPossiblePoints) * 100).toFixed(1);
+
+      document.getElementById('percent-label').innerText = `${percentage}% (${activeBoxes}/${maxPossiblePoints})`;
+      document.getElementById('progress-fill').style.width = `${percentage}%`;
+
+      drawContinuousGraph();
+    }
+
+    function drawContinuousGraph() {
+      const canvas = document.getElementById('trend-canvas');
+      const ctx = canvas.getContext('2d');
+      const monthData = monthsConfig[currentMonthIdx];
+      
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+
+      ctx.scale(dpr, dpr);
+
+      const w = rect.width;
+      const h = rect.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      ctx.strokeStyle = '#222222';
+      ctx.lineWidth = 1;
+      for (let y = 10; y <= h; y += 15) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      }
+
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2.5;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.shadowColor = 'rgba(56, 189, 248, 0.5)';
+      ctx.shadowBlur = 6;
+      
+      ctx.beginPath();
+
+      const stepX = (w - 20) / (monthData.days - 1);
+
+      for (let day = 1; day <= monthData.days; day++) {
+        const row = document.getElementById(`row-${day}`);
+        const activeCount = row ? row.querySelectorAll('.cell-box[class*="active-"]').length : 0;
+        
+        const yPercent = activeCount / totalHabits;
+        const x = 10 + (day - 1) * stepX;
+        const y = h - 6 - (yPercent * (h - 12));
+
+        if (day === 1) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+      
+      ctx.stroke();
+    }
+
+    function nextMonth() {
+      if (currentMonthIdx < monthsConfig.length - 1) {
+        autoSave();
+        journalApp.classList.add('page-turn-next');
+        currentMonthIdx++;
+        setTimeout(() => {
+          renderCurrentMonth();
+          journalApp.classList.remove('page-turn-next');
+        }, 120);
+      }
+    }
+
+    function prevMonth() {
+      if (currentMonthIdx > 0) {
+        autoSave();
+        journalApp.classList.add('page-turn-prev');
+        currentMonthIdx--;
+        setTimeout(() => {
+          renderCurrentMonth();
+          journalApp.classList.remove('page-turn-prev');
+        }, 120);
+      }
+    }
+
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    journalApp.addEventListener('touchstart', e => {
+      if (e.target.tagName === 'INPUT' || e.target.isContentEditable) return;
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    journalApp.addEventListener('touchend', e => {
+      if (e.target.tagName === 'INPUT' || e.target.isContentEditable) return;
+      touchEndX = e.changedTouches[0].screenX;
+      handleSwipe();
+    }, { passive: true });
+
+    function handleSwipe() {
+      const swipeThreshold = 50;
+      if (touchStartX - touchEndX > swipeThreshold) {
+        nextMonth();
+      } else if (touchEndX - touchStartX > swipeThreshold) {
+        prevMonth();
+      }
+    }
+
+    function autoSave() {
+      const monthKey = monthsConfig[currentMonthIdx].id;
+
+      const habitNames = [];
+      for (let h = 0; h < totalHabits; h++) {
+        habitNames.push(document.getElementById(`h-title-${h}`).innerText);
+      }
+      localStorage.setItem(`habits_${monthKey}`, JSON.stringify(habitNames));
+
+      localStorage.setItem(`mantra_${monthKey}`, mantraText.innerText);
+
+      const monthData = monthsConfig[currentMonthIdx];
+      const notes = {};
+      for (let day = 1; day <= monthData.days; day++) {
+        const input = document.getElementById(`note-${day}`);
+        if (input) notes[day] = input.value;
+      }
+      localStorage.setItem(`notes_${monthKey}`, JSON.stringify(notes));
+
+      const grid = [];
+      document.querySelectorAll('.cell-box').forEach((box, i) => grid[i] = box.className);
+      localStorage.setItem(`grid_${monthKey}`, JSON.stringify(grid));
+    }
+
+    function loadMonthData() {
+      const monthKey = monthsConfig[currentMonthIdx].id;
+
+      const savedHabits = JSON.parse(localStorage.getItem(`habits_${monthKey}`));
+      const habitsToLoad = savedHabits || monthsConfig[currentMonthIdx].defaultHabits;
+      habitsToLoad.forEach((name, h) => {
+        const el = document.getElementById(`h-title-${h}`);
+        if (el) el.innerText = name;
+      });
+
+      const savedMantra = localStorage.getItem(`mantra_${monthKey}`);
+      mantraText.innerText = savedMantra !== null ? savedMantra : monthsConfig[currentMonthIdx].defaultMantra;
+
+      const notes = JSON.parse(localStorage.getItem(`notes_${monthKey}`));
+      if (notes) {
+        for (let day = 1; day <= monthsConfig[currentMonthIdx].days; day++) {
+          const input = document.getElementById(`note-${day}`);
+          if (input && notes[day]) input.value = notes[day];
+        }
+      }
+
+      const grid = JSON.parse(localStorage.getItem(`grid_${monthKey}`));
+      if (grid) {
+        document.querySelectorAll('.cell-box').forEach((box, i) => {
+          if (grid[i]) box.className = grid[i];
+        });
+      }
+
+      setTimeout(updateStatsAndGraph, 50);
+    }
+
+    window.addEventListener('resize', drawContinuousGraph);
+    window.addEventListener('beforeunload', autoSave);
+
+    // Ocultar pantalla de inicio
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const splash = document.getElementById('splash-screen');
+        if (splash) splash.classList.add('hidden');
+      }, 1400);
+    });
+
+    renderCurrentMonth();
+  </script>
+</body>
+</html>
