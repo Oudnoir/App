@@ -1,18 +1,35 @@
 <!DOCTYPE html>
 <html lang="es">
-<head> <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(() => console.log("Service Worker registrado con éxito."))
-        .catch((err) => console.log("Error al registrar Service Worker:", err));
-    });
-  }
-</script>
-
+<head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Habit Tracker Universal HD</title>
+
+  <!-- Vinculación del PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#050505">
+
+  <!-- Íconos y Favicons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+
+  <!-- Configuración iOS Safari -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Habit Tracker">
+
+  <!-- Registro del Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(() => console.log("Service Worker registrado con éxito."))
+          .catch((err) => console.log("Error al registrar Service Worker:", err));
+      });
+    }
+  </script>
+
   <style>
     :root {
       --bg-journal: #121212;
